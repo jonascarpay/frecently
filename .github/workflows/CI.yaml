@@ -25,11 +25,6 @@ jobs:
         run: nix develop --command ghc --version
       - name: Build frecently
         run: nix build -L
-      - name: Build frecently checks
-        # TODO this should use `nix flake check` once that works as expected
-        run: nix build -L '.#checks.x86_64-linux."frecently:test:frecently-test"'
-      - name: Build frecently shell
-        run: nix build -L '.#devShell.x86_64-linux'
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}
