@@ -35,11 +35,9 @@ main = do
       loadFrecencies path >>= writeFrecencies path . delete str
     path : "view" : augs ->
       loadFrecencies path >>= putStr . unlines . view . augment (mapMaybe stripWhitespace augs)
-    path : "debug" : augs -> do
-      fs <- loadFrecencies path
-      debugView . augment (mapMaybe stripWhitespace augs) $ fs
-      debugView . augment (mapMaybe stripWhitespace augs) . expire . decay now $ fs
-    _ -> die "usage: frecently PATH <bump STR|delete STR|view STR*|debug STR*>"
+    path : "scores" : augs -> do
+      loadFrecencies path >>= printScores . augment (mapMaybe stripWhitespace augs) . expire . decay now
+    _ -> die "usage: frecently PATH <bump STR|delete STR|view STR*|scores STR*>"
 
 type Time = Word64
 
@@ -98,8 +96,7 @@ loadFrecencies fp = do
 writeFrecencies :: FilePath -> Frecencies -> IO ()
 writeFrecencies path fs = BS.writeFile path (encode fs)
 
-debugView :: Frecencies -> IO ()
-debugView (Frecencies t fs) = do
-  readProcess "date" ["-d", '@' : show t] "" >>= putStrLn
+printScores :: Frecencies -> IO ()
+printScores (Frecencies t fs) =
   forM_ (sortOn (negate . snd) $ Map.toList fs) $ \(str, score) -> do
     printf "%.5f\t\t%s\n" score (unNEString str)
