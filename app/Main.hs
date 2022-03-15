@@ -39,7 +39,7 @@ main = do
       fs <- loadFrecencies path
       debugView . augment (mapMaybe stripWhitespace augs) $ fs
       debugView . augment (mapMaybe stripWhitespace augs) . expire . decay now $ fs
-    _ -> die "usage: frecently PATH <bump STR|delete STR|view STRS|debug STRS>"
+    _ -> die "usage: frecently PATH <bump STR|delete STR|view STR*|debug STR*>"
 
 type Time = Word64
 
