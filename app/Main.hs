@@ -35,8 +35,10 @@ main = do
       loadFrecencies path >>= writeFrecencies path . delete str
     path : "view" : augs ->
       loadFrecencies path >>= putStr . unlines . view . augment (mapMaybe stripWhitespace augs)
-    path : "debug" : augs ->
-      loadFrecencies path >>= debugView . augment (mapMaybe stripWhitespace augs) . decay now
+    path : "debug" : augs -> do
+      fs <- loadFrecencies path
+      debugView . augment (mapMaybe stripWhitespace augs) $ fs
+      debugView . augment (mapMaybe stripWhitespace augs) . expire . decay now $ fs
     _ -> die "usage: frecently PATH <bump STR|delete STR|view STRS|debug STRS>"
 
 type Time = Word64
@@ -70,7 +72,7 @@ delete :: NEString -> Frecencies -> Frecencies
 delete str (Frecencies t fs) = Frecencies t (Map.delete str fs)
 
 expire :: Frecencies -> Frecencies
-expire (Frecencies t fs) = Frecencies t (Map.filter (> 0.5) fs)
+expire (Frecencies t fs) = Frecencies t (Map.filter (> 0.1) fs)
 
 bump :: NEString -> Frecencies -> Frecencies
 bump str (Frecencies t fs) = Frecencies t (Map.insertWith (+) str 1 fs)
