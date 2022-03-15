@@ -33,36 +33,11 @@ library
   hs-source-dirs:  src
   exposed-modules: Lib
   build-depends:
+    , cereal
     , containers
-    , mtl
 
 executable frecently-exe
   import:         common-options
   hs-source-dirs: app
   main-is:        Main.hs
   build-depends:  frecently
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
-
-test-suite frecently-test
-  import:         common-options
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        Spec.hs
-  build-depends:
-    , hspec
-    , HUnit
-    , frecently
-    , QuickCheck
-
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
-
-benchmark frecently-bench
-  import:         common-options
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: bench
-  main-is:        Main.hs
-  build-depends:
-    , criterion
-    , frecently
-
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N
