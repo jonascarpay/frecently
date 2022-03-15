@@ -10,44 +10,58 @@ The intended use case is to add a frecency-based search history to CLI tools lik
 
 `frecently` supports 4 commands:
 
-- `frecently HISTORY_FILE bump STRING` adds 1 to `STRING`'s score.
+- `frecently HISTORY_FILE bump STRING` adds 1 to `STRING`'s frecency score.
 - `frecently HISTORY_FILE delete STRING` removes `STRING`.
-- `frecently HISTORY_FILE view [STRING*]` prints the entries in the history file in order of descending score.
+- `frecently HISTORY_FILE view` prints the entries in the history file in order of descending score.
+- `frecently HISTORY_FILE scores` is like `view`, but also shows the scores.
 
-  Passing string arguments will, if the string is not already in the history, append them in the printed list _as if their score were 0_.
-  This is useful when choosing from a fixed set of answers, like with `rofi`'s `-no-custom` flag.
+If the history file does not exist yet, it is created.
 
-- `frecently HISTORY_FILE debug [STRING*]` prints the contents of a history file twice; first, as it is on disk, and second, as it would be if we applied decay to it.
-
-You don't need to manually make sure a history file exists; they are created if not yet present.
-
-### CLI Example
+### Example
 
 ```console
-$ frecently .freqs view
-$ frecently .freqs bump query1
-$ frecently .freqs view
+$ frecently .history view           # .history doesn't exist yet, which is handled as if it were empty
+$ frecently .history bump query1    # we create .history, and give query1 a frecency of 1
+$ frecently .history view
 query1
-$ frecently .freqs bump query2
-$ frecently .freqs view
+$ frecently .history bump query2
+$ frecently .history view           # since query1 has decayed, it appears below query2
 query2
 query1
-$ frecently .freqs bump query1
-$ frecently .freqs view
+$ frecently .history bump query1
+$ frecently .history view
 query1
 query2
-$ frecently .freqs debug
-Tue Mar 15 08:53:16 PM JST 2022
+$ frecently .history scores
+1.99998         query1
+0.99999         query2
+```
 
-1.99999         query1
-1.00000         query2
+### Fixed entries
+
+It can be useful to force certain strings to be present in the output.
+An example is when you use rofi to choose from a fixed set of options, like a power menu.
+If you pass these strings as extra arguments to `view` or `scores`, and they are not in the history already, they will be listed at the end, as if they had a score of 0.
+
+```console
+$ frecently .history view poweroff sleep reboot
+poweroff
+reboot
+sleep
+$ frecently .history bump sleep
+$ frecently .history view poweroff sleep reboot
+sleep
+poweroff
+reboot
+$ frecently .history view
+sleep
 ```
 
 ### Installation
 
 `frecently` is built like any other Haskell application.
 
-If you use Nix, you're in luck; the `flake.nix` file exposes the executable both directly and as an overlay.
+For Nix users: the `flake.nix` file exposes the executable both directly and as an overlay.
 
 ### Implementation details
 
