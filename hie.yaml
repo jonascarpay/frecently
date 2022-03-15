@@ -1,0 +1,16 @@
+cradle:
+  multi:
+    # - path: "ignore/"
+    #   config: {cradle: {none: }}
+
+    - path: "src"
+      config: {cradle: {cabal: {component: "lib:frecently"}}}
+
+    - path: "app"
+      config: {cradle: {cabal: {component: "frecently:frecently-exe"}}}
+
+    - path: "test"
+      config: {cradle: {cabal: {component: "frecently:frecently-test"}}}
+
+    - path: "bench"
+      config: {cradle: {cabal: {component: "frecently:frecently-bench"}}}
