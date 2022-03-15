@@ -20,24 +20,19 @@ extra-doc-files:
 --   type:     git
 --   location: git://github.com/FIXME/frecently.git
 
-common common-options
-  build-depends:    base >=4.9 && <5
+executable frecently
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  build-depends:
+    , base        >=4.9 && <5
+    , bytestring
+    , cereal
+    , containers
+    , directory
+    , process
+
   default-language: Haskell2010
   ghc-options:
     -Wall -Wcompat -Widentities -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints
-    -fhide-source-paths -Wpartial-fields
-
-library
-  import:          common-options
-  hs-source-dirs:  src
-  exposed-modules: Lib
-  build-depends:
-    , cereal
-    , containers
-
-executable frecently-exe
-  import:         common-options
-  hs-source-dirs: app
-  main-is:        Main.hs
-  build-depends:  frecently
+    -fhide-source-paths -Wpartial-fields -O2
