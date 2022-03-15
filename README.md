@@ -43,6 +43,12 @@ Tue Mar 15 08:53:16 PM JST 2022
 1.00000         query2
 ```
 
+### Installation
+
+`frecently` is built like any other Haskell application.
+
+If you use Nix, you're in luck; the `flake.nix` file exposes the executable both directly and as an overlay.
+
 ### Implementation details
 
 The history file contains two pieces of information;
