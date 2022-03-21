@@ -30,18 +30,16 @@ main = do
   now <- getUTC
   getArgs >>= \case
     path : "bump" : (stripWhitespace -> Just str) : [] ->
-      loadFrecencies path >>= writeFrecencies path . expire . bump str . decay now
+      loadFrecencies path >>= writeFrecencies path . expire now . bump now str
     path : "delete" : (stripWhitespace -> Just str) : [] ->
-      loadFrecencies path >>= writeFrecencies path . delete str
+      loadFrecencies path >>= writeFrecencies path . Map.delete str
     path : "view" : augs ->
-      loadFrecencies path >>= putStr . unlines . view . augment (mapMaybe stripWhitespace augs)
+      loadFrecencies path >>= putStr . unlines . view now . augment (mapMaybe stripWhitespace augs)
     path : "scores" : augs -> do
-      loadFrecencies path >>= printScores . augment (mapMaybe stripWhitespace augs) . expire . decay now
+      loadFrecencies path >>= printScores now . augment (mapMaybe stripWhitespace augs)
     _ -> die "usage: frecently PATH <bump STR|delete STR|view STR*|scores STR*>"
 
 type Time = Word64
-
-type Score = Double
 
 newtype NEString = NEString {unNEString :: String}
   deriving newtype (Eq, Ord, Show, Serialize)
@@ -49,37 +47,45 @@ newtype NEString = NEString {unNEString :: String}
 getUTC :: IO Time
 getUTC = read <$> readProcess "date" ["+%s"] ""
 
-data Frecencies = Frecencies
-  { lastUpdate :: Time,
-    frecencies :: Map NEString Score
+data Stats = Stats
+  { lastBump :: Time,
+    energy :: Double
   }
   deriving stock (Generic)
   deriving anyclass (Serialize)
 
-decay :: Time -> Frecencies -> Frecencies
-decay now (Frecencies prev m) = Frecencies now ((* α) <$> m)
-  where
-    α :: Double
-    α =
-      let halfLife = 30 * 24 * 60 * 60 -- seconds in 30 days
-          deltaT = fromIntegral (now - prev)
-          halfLives = deltaT / halfLife
-       in 0.5 ** halfLives
+instance Semigroup Stats where Stats l e <> Stats l' e' = Stats (max l l') (e + e')
 
-delete :: NEString -> Frecencies -> Frecencies
-delete str (Frecencies t fs) = Frecencies t (Map.delete str fs)
+type Frecencies = Map NEString Stats
 
-expire :: Frecencies -> Frecencies
-expire (Frecencies t fs) = Frecencies t (Map.filter (> 0.1) fs)
+halfLife :: Double
+halfLife = 30 * 24 * 60 * 60 -- seconds in 30 days
 
-bump :: NEString -> Frecencies -> Frecencies
-bump str (Frecencies t fs) = Frecencies t (Map.insertWith (+) str 1 fs)
+decayFactor :: Time -> Time -> Double
+decayFactor tNow tBump =
+  let dUpdate = fromIntegral (tNow - tBump)
+      halfLives = dUpdate / halfLife
+   in 0.5 ** halfLives
+
+recencyBonus :: Time -> Time -> Double
+recencyBonus tNow tBump =
+  let dBump = fromIntegral $ tNow - tBump
+   in 1 / (dBump / halfLife + 0.01)
+
+score :: Time -> Stats -> Double
+score tNow (Stats tBump nrg) = recencyBonus tNow tBump + nrg * decayFactor tNow tBump
+
+expire :: Time -> Frecencies -> Frecencies
+expire tNow = Map.filter ((> 0.01) . score tNow)
+
+bump :: Time -> NEString -> Frecencies -> Frecencies
+bump tNow str = Map.insertWith (<>) str (Stats tNow 1)
 
 augment :: [NEString] -> Frecencies -> Frecencies
-augment strs (Frecencies t fs) = Frecencies t (foldr (\str -> Map.insertWith (\_ old -> old) str 0) fs strs)
+augment strs m = foldr (\str -> Map.insertWith (<>) str (Stats 0 0)) m strs
 
-view :: Frecencies -> [String]
-view = fmap (unNEString . fst) . sortOn (negate . snd) . Map.toList . frecencies
+view :: Time -> Frecencies -> [String]
+view tNow = fmap (unNEString . fst) . sortOn (negate . snd) . Map.toList . fmap (score tNow)
 
 stripWhitespace :: String -> Maybe NEString
 stripWhitespace str = if null str' then Nothing else Just (NEString str)
@@ -91,12 +97,15 @@ loadFrecencies fp = do
   exists <- doesFileExist fp
   if exists
     then BS.readFile fp >>= either die pure . decode
-    else pure $ Frecencies 0 mempty
+    else pure mempty
 
 writeFrecencies :: FilePath -> Frecencies -> IO ()
 writeFrecencies path fs = BS.writeFile path (encode fs)
 
-printScores :: Frecencies -> IO ()
-printScores (Frecencies t fs) =
-  forM_ (sortOn (negate . snd) $ Map.toList fs) $ \(str, score) -> do
-    printf "%.5f\t\t%s\n" score (unNEString str)
+printScores :: Time -> Frecencies -> IO ()
+printScores tNow fs = do
+  printf "total\t\tenergy\t\trecency bonus\ttime stamp\tage\t\tword\n"
+  forM_ (sortOn (negate . score tNow . snd) $ Map.toList fs) $ \(str, Stats tBump nrg) -> do
+    let n = nrg * decayFactor tNow tBump
+        r = recencyBonus tNow tBump
+    printf "%12.7f\t%12.7f\t%12.7f\t%10d\t%10d\t%s\n" (n + r) n r tBump (tNow - tBump) (unNEString str)

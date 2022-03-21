@@ -63,7 +63,7 @@ sleep
 
 For Nix users: the `flake.nix` file exposes the executable both directly and as an overlay.
 
-### Implementation details
+### Implementation notes
 
 The history file contains two pieces of information;
   - a time stamp of when scores were last calculated
@@ -78,7 +78,7 @@ This is currently not configurable, but might be in the future.
 
 A bumped string has 1 added to its score.
 
-White space s always stripped from the beginning and end of strings
+White space is always stripped from the beginning and end of strings
 
 ### Comparison with other tools
 
