@@ -19,6 +19,7 @@ import Data.Maybe (mapMaybe)
 import Data.Serialize (Serialize, decode, encode)
 import Data.Word (Word64)
 import GHC.Generics (Generic)
+import System.AtomicWrite.Writer.ByteString (atomicWriteFile)
 import System.Directory (doesFileExist)
 import System.Environment (getArgs)
 import System.Exit (die)
@@ -104,7 +105,7 @@ loadFrecencies fp = do
     else pure $ Frecencies 0 mempty
 
 writeFrecencies :: FilePath -> Frecencies -> IO ()
-writeFrecencies path fs = BS.writeFile path (encode fs)
+writeFrecencies path fs = atomicWriteFile path (encode fs)
 
 printScores :: Frecencies -> IO ()
 printScores (Frecencies _ fs) = do

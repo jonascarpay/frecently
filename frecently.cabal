@@ -24,7 +24,8 @@ executable frecently
   hs-source-dirs:   app
   main-is:          Main.hs
   build-depends:
-    , base        >=4.9 && <5
+    , atomic-write
+    , base          >=4.9 && <5
     , bytestring
     , cereal
     , containers
