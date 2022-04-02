@@ -8,7 +8,6 @@
 
 module Main (main) where
 
-import Control.Applicative
 import Control.Monad
 import qualified Data.ByteString as BS
 import Data.Char (isSpace)
@@ -25,15 +24,14 @@ import System.Directory (doesFileExist)
 import System.Exit (die)
 import System.Process (readProcess)
 import Text.Printf (printf)
-import Text.Read (readMaybe)
 
 main :: IO ()
 main = do
   now <- getUTC
-  cmd <- execParser (info pCommand mempty)
+  cmd <- customExecParser (prefs showHelpOnEmpty) (info pCommand mempty)
   case cmd of
-    Bump fa str thresh weights -> withFrecencies fa $ expire thresh weights . bump str . decay now
-    Delete fa str -> withFrecencies fa $ delete str
+    Bump str fa thresh weights -> withFrecencies fa $ expire thresh weights . bump str . decay now
+    Delete str fa -> withFrecencies fa $ delete str
     View fa va weights -> do
       frecs <- loadFrecencies fa
       set <- readInput
@@ -45,15 +43,42 @@ main = do
 
 pCommand :: Parser Command
 pCommand =
-  hsubparser (command "bump" $ info (Bump <$> pFileArgs <*> pStringArg <*> pExpireArgs <*> pWeights) mempty)
-    <|> hsubparser (command "view" $ info (View <$> pFileArgs <*> pAugmentArgs <*> pWeights) mempty)
-    <|> hsubparser (command "delete" $ info (Delete <$> pFileArgs <*> pStringArg) mempty)
-    <|> hsubparser (command "scores" $ info (Scores <$> pFileArgs <*> pAugmentArgs <*> pWeights) mempty)
+  hsubparser $
+    command
+      "bump"
+      ( info
+          (Bump <$> pStringArg (help "The key to bump.") <*> pFileArgs <*> pExpireArgs <*> pWeights)
+          ( progDesc "Bump a single entry and update the database."
+              <> header "Bump a single entry and update the database. More specifically, add 1 to the entry's hourly/weekly/monthly scores, calculate and update all entries' half-lives, and remove expired entries according to the supplied threshold and weights."
+          )
+      )
+      <> command
+        "view"
+        ( info
+            (View <$> pFileArgs <*> pAugmentArgs <*> pWeights)
+            ( progDesc "View the history."
+                <> header "View the history. Extra keys can be supplied over stdin. If they are not present in the history, they will be included as if they had a score of 0."
+            )
+        )
+      <> command
+        "delete"
+        ( info
+            (Delete <$> pStringArg (help "The key to delete.") <*> pFileArgs)
+            (progDesc "Delete a key from the history.")
+        )
+      <> command
+        "scores"
+        ( info
+            (Scores <$> pFileArgs <*> pAugmentArgs <*> pWeights)
+            ( progDesc "View score table."
+                <> header "View the history energies and scores. The hourly/daily/weekly energies are presented unweighted. Like the view command, extra entries can be supplied over stdin."
+            )
+        )
 
 data Command
-  = Bump FileArgs NEString ExpireArgs Weights
+  = Bump NEString FileArgs ExpireArgs Weights
   | View FileArgs AugmentArgs Weights
-  | Delete FileArgs NEString
+  | Delete NEString FileArgs
   | Scores FileArgs AugmentArgs Weights
 
 data FileArgs = FileArgs
@@ -66,26 +91,19 @@ newtype Weights = Weights Energy
 pFileArgs :: Parser FileArgs
 pFileArgs =
   FileArgs
-    <$> strOption (long "history-file" <> short 'f' <> help "History file to use")
+    <$> strOption (long "history-file" <> short 'f' <> help "History file to use" <> metavar "PATH")
     <*> flag False True (long "missing-file-error" <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
 
-pStringArg :: Parser NEString
-pStringArg = argument (maybeReader $ \str -> guard (notElem '\n' str) >> stripWhitespace str) (metavar "ARG")
+pStringArg :: Mod ArgumentFields NEString -> Parser NEString
+pStringArg extraInfo = argument (maybeReader $ \str -> guard ('\n' `notElem` str) >> stripWhitespace str) (metavar "STRING" <> extraInfo)
 
 pWeights :: Parser Weights
-pWeights = option (Weights <$> reader) (long "weights" <> short 'w' <> help "Weights in hourly,daily,monthly format. Default: 720,24,1.")
-  where
-    reader = maybeReader $ \str -> do
-      case splitOn ',' str of
-        [m, d, h] -> liftA3 Energy (readMaybe m) (readMaybe d) (readMaybe h)
-        _ -> Nothing
-    splitOn :: Eq a => a -> [a] -> [[a]]
-    splitOn sep = go
-      where
-        go [] = []
-        go str =
-          let (h, t) = span (/= sep) str
-           in h : go (drop 1 t)
+pWeights =
+  fmap Weights $
+    Energy
+      <$> option auto (short 'h' <> long "hourly" <> metavar "FLOAT" <> help "Hourly energy weight in score calculation." <> showDefault <> value 720)
+      <*> option auto (short 'd' <> long "daily" <> metavar "FLOAT" <> help "Daily energy weight in score calculation." <> showDefault <> value 24)
+      <*> option auto (short 'm' <> long "monthly" <> metavar "FLOAT" <> help "Monthly energy weight in score calculation." <> showDefault <> value 1)
 
 newtype ExpireArgs = ExpireArgs {_uaThreshold :: Double}
 
@@ -97,6 +115,7 @@ pExpireArgs =
       ( long "threshold"
           <> short 't'
           <> help "Expiration threshold. Items with a score lower than this will be removed."
+          <> metavar "FLOAT"
           <> value 0.2
           <> showDefault
       )
@@ -107,7 +126,7 @@ readInput = mapMaybe stripWhitespace . lines <$> getContents
 newtype AugmentArgs = AugmentArgs {_vaRestrict :: Bool}
 
 pAugmentArgs :: Parser AugmentArgs
-pAugmentArgs = AugmentArgs <$> flag False True (long "restrict" <> short 'r' <> help "Restrictive mode. Will only output items that are in the list read from stdin.")
+pAugmentArgs = AugmentArgs <$> flag False True (long "restrict" <> short 'r' <> help "Restrictive mode. Will _only_ output entries that are present in the list read from stdin.")
 
 type Time = Word64
 
@@ -189,6 +208,6 @@ writeFrecencies path fs = atomicWriteFile path (encode fs)
 
 printScores :: Weights -> Frecencies -> IO ()
 printScores weights (Frecencies _ fs) = do
-  printf "total\t\thourly\t\tdaily\t\tmonthly\n"
-  forM_ (sortOn (negate . score weights . snd) $ Map.toList fs) $ \(str, Energy h d m) -> do
-    printf "%12.6f\t%12.6f\t%12.6f\5%12.6f\t%s\n" (h + d + m) h d m (unNEString str)
+  printf "weighted score\thourly\t\tdaily\t\tmonthly\n"
+  forM_ (sortOn (negate . score weights . snd) $ Map.toList fs) $ \(str, nrg@(Energy h d m)) ->
+    printf "%12.6f\t%12.6f\t%12.6f\5%12.6f\t%s\n" (score weights nrg) h d m (unNEString str)
