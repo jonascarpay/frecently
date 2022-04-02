@@ -11,6 +11,7 @@ module Main (main) where
 import Control.Monad
 import qualified Data.ByteString as BS
 import Data.Char (isSpace)
+import Data.Foldable (toList)
 import Data.List (dropWhileEnd, sortOn)
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -30,16 +31,16 @@ main = do
   now <- getUTC
   cmd <- customExecParser (prefs showHelpOnEmpty) (info pCommand mempty)
   case cmd of
-    Bump str fa thresh weights -> withFrecencies fa $ expire thresh weights . bump str . decay now
+    Bump str thresh weights fa -> withFrecencies fa $ expire thresh weights . bump str . decay now
     Delete str fa -> withFrecencies fa $ delete str
-    View fa va weights -> do
+    View augmentArgs weights fa -> do
       frecs <- loadFrecencies fa
-      set <- readInput
-      putStr . unlines . view weights . augment va set . decay now $ frecs
-    Scores fa va weights -> do
+      fAugment <- augment augmentArgs
+      putStr . unlines . view weights . fAugment . decay now $ frecs
+    Scores augmentArgs weights fa -> do
       frecs <- loadFrecencies fa
-      set <- readInput
-      printScores weights . augment va set . decay now $ frecs
+      fAugment <- augment augmentArgs
+      printScores weights . fAugment . decay now $ frecs
 
 pCommand :: Parser Command
 pCommand =
@@ -47,7 +48,7 @@ pCommand =
     command
       "bump"
       ( info
-          (Bump <$> pStringArg (help "The key to bump.") <*> pFileArgs <*> pExpireArgs <*> pWeights)
+          (withFile $ Bump <$> pStringArg (help "The key to bump.") <*> pExpireArgs <*> pWeights)
           ( progDesc "Bump a single entry and update the database."
               <> header "Bump a single entry and update the database. More specifically, add 1 to the entry's hourly/weekly/monthly scores, calculate and update all entries' half-lives, and remove expired entries according to the supplied threshold and weights."
           )
@@ -55,7 +56,7 @@ pCommand =
       <> command
         "view"
         ( info
-            (View <$> pFileArgs <*> pAugmentArgs <*> pWeights)
+            (withFile $ View <$> pAugmentArgs <*> pWeights)
             ( progDesc "View the history."
                 <> header "View the history. Extra keys can be supplied over stdin. If they are not present in the history, they will be included as if they had a score of 0."
             )
@@ -63,23 +64,30 @@ pCommand =
       <> command
         "delete"
         ( info
-            (Delete <$> pStringArg (help "The key to delete.") <*> pFileArgs)
+            (withFile $ Delete <$> pStringArg (help "The key to delete."))
             (progDesc "Delete a key from the history.")
         )
       <> command
         "scores"
         ( info
-            (Scores <$> pFileArgs <*> pAugmentArgs <*> pWeights)
+            (withFile $ Scores <$> pAugmentArgs <*> pWeights)
             ( progDesc "View score table."
                 <> header "View the history energies and scores. The hourly/daily/weekly energies are presented unweighted. Like the view command, extra entries can be supplied over stdin."
             )
         )
 
+withFile :: Parser (FileArgs -> a) -> Parser a
+withFile inner =
+  (\fp a err -> a (FileArgs fp err))
+    <$> strArgument (help "History file to use." <> metavar "FILE")
+    <*> inner
+    <*> flag False True (long "missing-file-error" <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
+
 data Command
-  = Bump NEString FileArgs ExpireArgs Weights
-  | View FileArgs AugmentArgs Weights
+  = Bump NEString ExpireArgs Weights FileArgs
+  | View AugmentArgs Weights FileArgs
   | Delete NEString FileArgs
-  | Scores FileArgs AugmentArgs Weights
+  | Scores AugmentArgs Weights FileArgs
 
 data FileArgs = FileArgs
   { faPath :: FilePath,
@@ -87,12 +95,6 @@ data FileArgs = FileArgs
   }
 
 newtype Weights = Weights Energy
-
-pFileArgs :: Parser FileArgs
-pFileArgs =
-  FileArgs
-    <$> strOption (long "history-file" <> short 'f' <> help "History file to use" <> metavar "PATH")
-    <*> flag False True (long "missing-file-error" <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
 
 pStringArg :: Mod ArgumentFields NEString -> Parser NEString
 pStringArg extraInfo = argument (maybeReader $ \str -> guard ('\n' `notElem` str) >> stripWhitespace str) (metavar "STRING" <> extraInfo)
@@ -123,10 +125,27 @@ pExpireArgs =
 readInput :: IO [NEString]
 readInput = mapMaybe stripWhitespace . lines <$> getContents
 
-newtype AugmentArgs = AugmentArgs {_vaRestrict :: Bool}
+augment :: AugmentArgs -> IO (Frecencies -> Frecencies)
+augment (AugmentArgs False False) = pure id
+augment (AugmentArgs aug res) = do
+  strs <- readInput
+  pure $ \(Frecencies t fs) -> Frecencies t $
+    case (aug, res) of
+      (False, True) -> Map.fromList [(str, nrg) | str <- strs, nrg <- toList (Map.lookup str fs)]
+      (True, False) -> foldr (\str -> Map.insertWith (<>) str (Energy 0 0 0)) fs strs
+      (True, True) -> Map.fromList $ (\key -> maybe (key, Energy 0 0 0) (key,) (Map.lookup key fs)) <$> strs
+      _ -> fs
+
+data AugmentArgs = AugmentArgs
+  { _aaAugment :: Bool,
+    _aaRestrict :: Bool
+  }
 
 pAugmentArgs :: Parser AugmentArgs
-pAugmentArgs = AugmentArgs <$> flag False True (long "restrict" <> short 'r' <> help "Restrictive mode. Will _only_ output entries that are present in the list read from stdin.")
+pAugmentArgs =
+  AugmentArgs
+    <$> flag False True (long "augment" <> short 'a' <> help "Augment the history with entries read from stdin.")
+    <*> flag False True (long "restrict" <> short 'r' <> help "Restrictive mode. Will _only_ output entries that are present in the list read from stdin.")
 
 type Time = Word64
 
@@ -173,14 +192,7 @@ expire (ExpireArgs threshold) weights (Frecencies t fs) = Frecencies t (Map.filt
 
 -- TODO bump by 1 1 1, multiply scores before presenting
 bump :: NEString -> Frecencies -> Frecencies
-bump str (Frecencies t fs) = Frecencies t (Map.insertWith (<>) str (Energy 720 30 1) fs)
-
-augment :: AugmentArgs -> [NEString] -> Frecencies -> Frecencies
-augment (AugmentArgs restrict) strs (Frecencies t fs) =
-  Frecencies t $
-    if restrict
-      then Map.fromList $ (\key -> maybe (key, Energy 0 0 0) (key,) (Map.lookup key fs)) <$> strs
-      else foldr (\str -> Map.insertWith (<>) str (Energy 0 0 0)) fs strs
+bump str (Frecencies t fs) = Frecencies t (Map.insertWith (<>) str (Energy 1 1 1) fs)
 
 view :: Weights -> Frecencies -> [String]
 view weights = fmap (unNEString . fst) . sortOn (negate . score weights . snd) . Map.toList . energies
@@ -210,4 +222,4 @@ printScores :: Weights -> Frecencies -> IO ()
 printScores weights (Frecencies _ fs) = do
   printf "weighted score\thourly\t\tdaily\t\tmonthly\n"
   forM_ (sortOn (negate . score weights . snd) $ Map.toList fs) $ \(str, nrg@(Energy h d m)) ->
-    printf "%12.6f\t%12.6f\t%12.6f\5%12.6f\t%s\n" (score weights nrg) h d m (unNEString str)
+    printf "%12.6f\t%10.6f\t%10.6f\t%10.6f\t%s\n" (score weights nrg) h d m (unNEString str)
