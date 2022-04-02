@@ -25,11 +25,12 @@ executable frecently
   main-is:          Main.hs
   build-depends:
     , atomic-write
-    , base          >=4.9 && <5
+    , base                  >=4.9 && <5
     , bytestring
     , cereal
     , containers
     , directory
+    , optparse-applicative
     , process
 
   default-language: Haskell2010
