@@ -3,7 +3,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TupleSections #-}
-{-# HLINT ignore "Use list literal pattern" #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Main (main) where
@@ -29,7 +28,7 @@ import Text.Printf (printf)
 main :: IO ()
 main = do
   now <- getUTC
-  cmd <- customExecParser (prefs showHelpOnEmpty) (info pCommand mempty)
+  cmd <- customExecParser (prefs $ showHelpOnEmpty <> showHelpOnError) (info (pCommand <**> helper) mempty)
   case cmd of
     Bump str thresh weights fa -> withFrecencies fa $ expire thresh weights . bump str . decay now
     Delete str fa -> withFrecencies fa $ delete str
@@ -41,57 +40,67 @@ main = do
       frecs <- loadFrecencies fa
       fAugment <- augment augmentArgs
       printScores weights . fAugment . decay now $ frecs
-
-pCommand :: Parser Command
-pCommand =
-  hsubparser $
-    command
-      "bump"
-      ( info
-          (withFile $ Bump <$> pStringArg (help "The key to bump.") <*> pExpireArgs <*> pWeights)
-          ( progDesc "Bump a single entry and update the database."
-              <> header "Bump a single entry and update the database. More specifically, add 1 to the entry's hourly/weekly/monthly scores, calculate and update all entries' half-lives, and remove expired entries according to the supplied threshold and weights."
-          )
-      )
-      <> command
-        "view"
-        ( info
-            (withFile $ View <$> pAugmentArgs <*> pWeights)
-            ( progDesc "View the history."
-                <> header "View the history. Extra keys can be supplied over stdin. If they are not present in the history, they will be included as if they had a score of 0."
-            )
-        )
-      <> command
-        "delete"
-        ( info
-            (withFile $ Delete <$> pStringArg (help "The key to delete."))
-            (progDesc "Delete a key from the history.")
-        )
-      <> command
-        "scores"
-        ( info
-            (withFile $ Scores <$> pAugmentArgs <*> pWeights)
-            ( progDesc "View score table."
-                <> header "View the history energies and scores. The hourly/daily/weekly energies are presented unweighted. Like the view command, extra entries can be supplied over stdin."
-            )
-        )
-
-withFile :: Parser (FileArgs -> a) -> Parser a
-withFile inner =
-  (\fp a err -> a (FileArgs fp err))
-    <$> strArgument (help "History file to use." <> metavar "FILE")
-    <*> inner
-    <*> flag False True (long "missing-file-error" <> short 'e' <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
+    Touch expireArgs weights fileArgs -> do
+      withFrecencies fileArgs $ expire expireArgs weights . decay now
 
 data Command
   = Bump NEString ExpireArgs Weights FileArgs
   | View AugmentArgs Weights FileArgs
   | Delete NEString FileArgs
   | Scores AugmentArgs Weights FileArgs
+  | Touch ExpireArgs Weights FileArgs
+
+pCommand :: Parser Command
+pCommand =
+  subparser $
+    command
+      "bump"
+      ( info
+          (withFile $ Bump <$> pStringArg (help "The key to bump") <*> pExpireArgs <*> pWeights)
+          ( progDesc "Bump a single entry and update the database"
+              <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly scores, calculates and updates all entries' half-lives, and removes expired entries according to the supplied threshold and weights."
+          )
+      )
+      <> command
+        "view"
+        ( info
+            (withFile $ View <$> pAugmentArgs <*> pWeights)
+            ( progDesc "View the history"
+                <> footer "When used with --augment and/or --restrict, this blocks on stdin."
+            )
+        )
+      <> command
+        "delete"
+        ( info
+            (withFile $ Delete <$> pStringArg (help "The key to delete"))
+            (progDesc "Delete a key from the history")
+        )
+      <> command
+        "scores"
+        ( info
+            (withFile $ Scores <$> pAugmentArgs <*> pWeights)
+            ( progDesc "View score table"
+                <> footer "The hourly/daily/weekly energies are presented unweighted. Supports the same stdin functionality as the view command."
+            )
+        )
+      <> command
+        "touch"
+        ( info
+            (withFile $ Touch <$> pExpireArgs <*> pWeights)
+            (progDesc "Create and/or update a history file")
+        )
+
+withFile :: Parser (FileArgs -> a) -> Parser a
+withFile inner =
+  (\fp a err -> a (FileArgs fp err))
+    <$> strArgument (help "History file to use" <> metavar "FILE")
+    <*> inner
+    <*> flag False True (long "missing-file-error" <> short 'e' <> help "Throw an error if the file is missing, instead of treating it as an empty history")
 
 data FileArgs = FileArgs
   { faPath :: FilePath,
     _faErrorIfMissing :: Bool
+    -- TODO different output file
   }
 
 newtype Weights = Weights Energy
@@ -103,10 +112,11 @@ pWeights :: Parser Weights
 pWeights =
   fmap Weights $
     Energy
-      <$> option auto (short 'h' <> long "hourly" <> metavar "FLOAT" <> help "Hourly energy weight in score calculation." <> showDefault <> value 720)
-      <*> option auto (short 'd' <> long "daily" <> metavar "FLOAT" <> help "Daily energy weight in score calculation." <> showDefault <> value 24)
-      <*> option auto (short 'm' <> long "monthly" <> metavar "FLOAT" <> help "Monthly energy weight in score calculation." <> showDefault <> value 1)
+      <$> option auto (short 'h' <> long "hourly" <> metavar "FLOAT" <> help "Hourly energy weight" <> showDefault <> value 720)
+      <*> option auto (short 'd' <> long "daily" <> metavar "FLOAT" <> help "Daily energy weight" <> showDefault <> value 24)
+      <*> option auto (short 'm' <> long "monthly" <> metavar "FLOAT" <> help "Monthly energy weight" <> showDefault <> value 1)
 
+-- TODO no-decay
 newtype ExpireArgs = ExpireArgs {_uaThreshold :: Double}
 
 pExpireArgs :: Parser ExpireArgs
@@ -144,8 +154,8 @@ data AugmentArgs = AugmentArgs
 pAugmentArgs :: Parser AugmentArgs
 pAugmentArgs =
   AugmentArgs
-    <$> flag False True (long "augment" <> short 'a' <> help "Augment the history with entries read from stdin.")
-    <*> flag False True (long "restrict" <> short 'r' <> help "Restrictive mode. Will _only_ output entries that are present in the list read from stdin.")
+    <$> flag False True (long "augment" <> short 'a' <> help "Augment the output with keys read from stdin, treating them as if they had a score of 0 if they are not present in the history")
+    <*> flag False True (long "restrict" <> short 'r' <> help "Only output items present in the keys read from stdin")
 
 type Time = Word64
 
