@@ -20,8 +20,9 @@ import Data.Word (Word64)
 import GHC.Generics (Generic)
 import Options.Applicative hiding (str)
 import System.AtomicWrite.Writer.ByteString (atomicWriteFile)
-import System.Directory (doesFileExist)
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Exit (die)
+import System.FilePath (takeDirectory)
 import System.Process (readProcess)
 import Text.Printf (printf)
 
@@ -226,7 +227,9 @@ withFrecencies :: FileArgs -> (Frecencies -> Frecencies) -> IO ()
 withFrecencies fa f = loadFrecencies fa >>= writeFrecencies (faPath fa) . f
 
 writeFrecencies :: FilePath -> Frecencies -> IO ()
-writeFrecencies path fs = atomicWriteFile path (encode fs)
+writeFrecencies path fs = do
+  createDirectoryIfMissing True (takeDirectory path)
+  atomicWriteFile path (encode fs)
 
 printScores :: Weights -> Frecencies -> IO ()
 printScores weights (Frecencies _ fs) = do

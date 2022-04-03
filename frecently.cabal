@@ -30,6 +30,7 @@ executable frecently
     , cereal
     , containers
     , directory
+    , filepath
     , optparse-applicative
     , process
 
