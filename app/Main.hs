@@ -81,7 +81,7 @@ withFile inner =
   (\fp a err -> a (FileArgs fp err))
     <$> strArgument (help "History file to use." <> metavar "FILE")
     <*> inner
-    <*> flag False True (long "missing-file-error" <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
+    <*> flag False True (long "missing-file-error" <> short 'e' <> help "Throw an error if the file is missing, instead of treating it as an empty history.")
 
 data Command
   = Bump NEString ExpireArgs Weights FileArgs
