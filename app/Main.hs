@@ -114,7 +114,7 @@ pWeights =
   fmap Weights $
     Energy
       <$> option auto (short 'h' <> long "hourly" <> metavar "FLOAT" <> help "Hourly energy weight" <> showDefault <> value 720)
-      <*> option auto (short 'd' <> long "daily" <> metavar "FLOAT" <> help "Daily energy weight" <> showDefault <> value 24)
+      <*> option auto (short 'd' <> long "daily" <> metavar "FLOAT" <> help "Daily energy weight" <> showDefault <> value 30)
       <*> option auto (short 'm' <> long "monthly" <> metavar "FLOAT" <> help "Monthly energy weight" <> showDefault <> value 1)
 
 -- TODO no-decay
