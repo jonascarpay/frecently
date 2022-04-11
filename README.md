@@ -9,6 +9,9 @@ The intended use case is to add a frecency-based search history to CLI tools lik
 
 ### Examples
 
+We'll look at some examples of how to integrate `frecently` with other tools.
+For more detailed information, run `frecently --help`.
+
 #### Basic CLI:
 
 ```console
@@ -32,7 +35,9 @@ bar
 baz
 ```
 
-#### Bash script for dmenu web searches with history
+#### `dmenu` web searches with history
+
+This bash script shows how easily `frecently` integrates with tools like `dmenu`:
 
 ```bash
 set -eo pipefail
@@ -45,11 +50,32 @@ if [[ -n "$QUERY" ]]; then
 fi
 ```
 
-See `frecently --help` for more detailed usage information.
+#### Directory picker
+
+In this more complicated bash script, we use `frecently` and `dmenu` to first ask the user for a directory, and then open a terminal in that directory.
+It shows a good use-case for `--augment` (`-a`), augmenting the list with any non-hidden directory at most 2 deep from `$HOME`.
+
+```bash
+set -eo pipefail
+HISTORY=~/.directory-history
+# First, purge non-existent directories from the history
+for dir in $(frecently view $HISTORY); do
+  if [ ! -d "$dir" ]; then
+    echo "Removing $dir"
+    frecently delete $HISTORY "$dir"
+  fi
+done
+# Load the history, augmenting it with every non-hidden directory at most 2 deep from $HOME.
+DIR=$(find $HOME -maxdepth 2 -type d -not -path '*/.*' | frecently view $HISTORY -a | dmenu -i)
+if [ -d $DIR ]; then
+  frecently bump $HISTORY "$DIR"
+  $TERMCMD -d "$DIR"
+fi
+```
 
 ### Installation
 
-`frecently` is currently only distributed as source through GitHub, or through Hackage.
+`frecently` is currently only distributed through GitHub or Hackage.
 
 It is built like any other Haskell application.
 
@@ -57,16 +83,17 @@ For Nix users: the `flake.nix` file exposes the executable both directly and as 
 
 ### Implementation details
 
-`frecently` works by maintaining three exponentially-decaying energy per entry.
-The three energies each have different half-lives: an hour, a day, and a month.
-We bump an entry by adding 1 to each of its three energies.
+`frecently` works by maintaining three energy levels per entry.
+The energy levels decay exponentially, with half-lives of an hour, a day, and a month, respectively.
+We `bump` an entry by adding 1 to each of these.
 
 An entry's frecency score is calculated by multiplying each of these three energies by a weight.
 The weights default to 160, 20, and 1, for the hourly, daily, and monthly energies, respectively, but can be overridden on the CLI.
 
-Entries' energies are updates _only_ when the history file is used in a `bump` or `touch` command, and when we do, we update every entry's energy simultaneously.
-Always updating all entries at the same time allows score calculations to be very efficient, since the decay factors since the last update are the same for every entry.
-When, during an update, an entry's monthly energy drops below the supplied threshold value (defaults to 0.2), it is deleted from the history.
+Energies are updated _only_ when the history file is used in a `bump` or `touch` command, and when we do, we update every entry's energy simultaneously.
+This is invisible to the user, but it ensures that we only need to calculate decay factors once when opening a file, making score calculations very efficient.
+
+When, during an update, an entry's monthly energy drops below the threshold value (defaults to 0.2), it is deleted from the history.
 If you don't want items to be deleted, use a threshold of 0.
 
 ### Comparison with other tools
