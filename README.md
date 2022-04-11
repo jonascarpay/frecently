@@ -4,84 +4,71 @@
 
 Extremely simple CLI tool for maintaining a [frecency](https://en.wikipedia.org/wiki/Frecency) history.
 
-The intended use case is to add a frecency-based search history to CLI tools like [rofi](https://github.com/davatorium/rofi) or [dmenu](https://tools.suckless.org/dmenu/).
+The intended use case is to add a frecency-based search history to CLI tools like [dmenu](https://tools.suckless.org/dmenu/), [rofi](https://github.com/davatorium/rofi), or [fzf](https://github.com/junegunn/fzf).
 
-### Usage
 
-`frecently` supports 4 commands:
+### Examples
 
-- `frecently HISTORY_FILE bump STRING` adds 1 to `STRING`'s frecency score.
-- `frecently HISTORY_FILE delete STRING` removes `STRING`.
-- `frecently HISTORY_FILE view` prints the entries in the history file in order of descending score.
-- `frecently HISTORY_FILE scores` is like `view`, but also shows the scores.
-
-If the history file does not exist yet, it is created.
-
-### Example
+#### Basic CLI:
 
 ```console
-$ frecently .history view           # .history doesn't exist yet, which is handled as if it were empty
-$ frecently .history bump query1    # we create .history, and give query1 a frecency of 1
-$ frecently .history view
-query1
-$ frecently .history bump query2
-$ frecently .history view           # since query1 has decayed, it appears below query2
-query2
-query1
-$ frecently .history bump query1
-$ frecently .history view
-query1
-query2
-$ frecently .history scores
-1.99998         query1
-0.99999         query2
+$ frecently view .history      # .history doesn't exist yet. By default, all commands treat a missing file as empty
+$ frecently bump .history foo  # creates .history, and bumps foo
+$ frecently bump .history bar
+$ frecently view .history      # `view` shows all entries, ordered by frecency
+bar
+foo
+$ echo -e "bar\nbaz" | frecently view .history --augment   # with --augment, frecently accepts extra entries on stdin (newline-separated) that should always appear in the output
+bar
+foo
+baz
+$ echo -e "foo\nbar\nbaz" | frecently scores .history --augment   # `scores` has the same interface as `view`, but shows the entire scores table
+weighted score  hourly          daily           monthly
+  178.663539      0.985473        0.999390        0.999980      bar
+  178.267277      0.983010        0.999286        0.999976      foo
+    0.000000      0.000000        0.000000        0.000000      baz
+$ echo -e "bar\nbaz" | frecently view .history --augment --restrict  # with --restrict, we exclusively output entries that appear on stdin
+bar
+baz
 ```
 
-### Fixed entries
+#### Bash script for dmenu web searches with history
 
-It can be useful to force certain strings to be present in the output.
-An example is when you use rofi to choose from a fixed set of options, like a power menu.
-If you pass these strings as extra arguments to `view` or `scores`, and they are not in the history already, they will be listed at the end, as if they had a score of 0.
+```bash
+set -eo pipefail
+HISTORY=~/.search-history
+QUERY=$(frecently view $HISTORY | dmenu -p "Web search:")
 
-```console
-$ frecently .history view poweroff sleep reboot
-poweroff
-reboot
-sleep
-$ frecently .history bump sleep
-$ frecently .history view poweroff sleep reboot
-sleep
-poweroff
-reboot
-$ frecently .history view
-sleep
+if [[ -n "$QUERY" ]]; then
+  frecently bump "$HISTORY" "$QUERY"
+  xdg-open "https://www.duckduckgo.com/?q=$QUERY"
+fi
 ```
+
+See `frecently --help` for more detailed usage information.
 
 ### Installation
 
-`frecently` is built like any other Haskell application.
+`frecently` is currently only distributed as source through GitHub, or through Hackage.
+
+It is built like any other Haskell application.
 
 For Nix users: the `flake.nix` file exposes the executable both directly and as an overlay.
 
 ### Implementation details
 
-The history file contains two pieces of information;
-  - a time stamp of when scores were last calculated
-  - a list of unique strings and their scores.
+`frecently` works by maintaining three exponentially-decaying energy per entry.
+The three energies each have different half-lives: an hour, a day, and a month.
+We bump an entry by adding 1 to each of its three energies.
 
-Scores are recalculated every time we `bump` a string.
-The calculation is as follows: `score_new = score_old * 0.5 ^ ((time_new - time_old) / 30 days)`.
-In other words, scores have a half-time of 30 days.
-If a score drops below 0.1, it is removed from the list.
-This means that a string that you bump only once is removed after about 100 days.
-This is currently not configurable, but might be in the future.
+An entry's frecency score is calculated by multiplying each of these three energies by a weight.
+The weights default to 160, 20, and 1, for the hourly, daily, and monthly energies, respectively, but can be overridden on the CLI.
 
-A bumped string has 1 added to its score.
-
-White space s always stripped from the beginning and end of strings
+Entries' energies are updates _only_ when the history file is used in a `bump` or `touch` command, and when we do, we update every entry's energy simultaneously.
+Always updating all entries at the same time allows score calculations to be very efficient, since the decay factors since the last update are the same for every entry.
 
 ### Comparison with other tools
 
 This tool was inspired by [frece](https://github.com/YodaEmbedding/frece).
-I like the ideas behind `frece`, but I think the execution is more complicated than it needs to be.
+I really like the idea behind `frece`, but I think the execution is more complicated than it needs to be.
 `frecently` is both simpler and easier to integrate into CLI applications.
