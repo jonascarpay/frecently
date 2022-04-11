@@ -31,7 +31,7 @@ main = do
   now <- getUTC
   cmd <- customExecParser (prefs $ showHelpOnEmpty <> showHelpOnError) (info (pCommand <**> helper) mempty)
   case cmd of
-    Bump str thresh weights fa -> withFrecencies fa $ expire thresh weights . bump str . decay now
+    Bump str thresh fa -> withFrecencies fa $ expire thresh . bump str . decay now
     Delete str fa -> withFrecencies fa $ delete str
     View augmentArgs weights fa -> do
       frecs <- loadFrecencies fa
@@ -41,15 +41,15 @@ main = do
       frecs <- loadFrecencies fa
       fAugment <- augment augmentArgs
       printScores weights . fAugment . decay now $ frecs
-    Touch expireArgs weights fileArgs -> do
-      withFrecencies fileArgs $ expire expireArgs weights . decay now
+    Touch expireArgs fileArgs -> do
+      withFrecencies fileArgs $ expire expireArgs . decay now
 
 data Command
-  = Bump NEString ExpireArgs Weights FileArgs
+  = Bump NEString ExpireArgs FileArgs
   | View AugmentArgs Weights FileArgs
   | Delete NEString FileArgs
   | Scores AugmentArgs Weights FileArgs
-  | Touch ExpireArgs Weights FileArgs
+  | Touch ExpireArgs FileArgs
 
 pCommand :: Parser Command
 pCommand =
@@ -57,9 +57,9 @@ pCommand =
     command
       "bump"
       ( info
-          (withFile $ Bump <$> pStringArg (help "The key to bump") <*> pExpireArgs <*> pWeights)
+          (withFile $ Bump <$> pStringArg (help "The key to bump") <*> pExpireArgs)
           ( progDesc "Bump a single entry and update the database"
-              <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly scores, calculates and updates all entries' scores, and removes expired entries according to the supplied threshold and weights."
+              <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly energy, updates all entries' energy, and removes entries whose monthly energy has dropped below the threshold."
           )
       )
       <> command
@@ -87,7 +87,7 @@ pCommand =
       <> command
         "touch"
         ( info
-            (withFile $ Touch <$> pExpireArgs <*> pWeights)
+            (withFile $ Touch <$> pExpireArgs)
             (progDesc "Create and/or update a history file")
         )
 
@@ -127,7 +127,7 @@ pExpireArgs =
       auto
       ( long "threshold"
           <> short 't'
-          <> help "Expiration threshold. Items with a score lower than this will be removed."
+          <> help "Expiration threshold. Items with a monthly energy below this will be removed."
           <> metavar "FLOAT"
           <> value 0.2
           <> showDefault
@@ -198,8 +198,8 @@ score (Weights (Energy wh wd wm)) (Energy h d m) = wh * h + wd * d + wm * m
 delete :: NEString -> Frecencies -> Frecencies
 delete str (Frecencies t fs) = Frecencies t (Map.delete str fs)
 
-expire :: ExpireArgs -> Weights -> Frecencies -> Frecencies
-expire (ExpireArgs threshold) weights (Frecencies t fs) = Frecencies t (Map.filter ((> threshold) . score weights) fs)
+expire :: ExpireArgs -> Frecencies -> Frecencies
+expire (ExpireArgs threshold) (Frecencies t fs) = Frecencies t (Map.filter ((> threshold) . monthly) fs)
 
 -- TODO bump by 1 1 1, multiply scores before presenting
 bump :: NEString -> Frecencies -> Frecencies
