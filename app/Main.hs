@@ -59,7 +59,7 @@ pCommand =
       ( info
           (withFile $ Bump <$> pStringArg (help "The key to bump") <*> pExpireArgs <*> pWeights)
           ( progDesc "Bump a single entry and update the database"
-              <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly scores, calculates and updates all entries' half-lives, and removes expired entries according to the supplied threshold and weights."
+              <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly scores, calculates and updates all entries' scores, and removes expired entries according to the supplied threshold and weights."
           )
       )
       <> command
