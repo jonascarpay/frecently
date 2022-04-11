@@ -57,7 +57,7 @@ pCommand =
     command
       "bump"
       ( info
-          (withFile $ Bump <$> pStringArg (help "The key to bump") <*> pExpireArgs)
+          (withFile $ Bump <$> pStringArg (help "The entry to bump") <*> pExpireArgs)
           ( progDesc "Bump a single entry and update the database"
               <> footer "Bumping adds 1 to the entry's hourly/weekly/monthly energy, updates all entries' energy, and removes entries whose monthly energy has dropped below the threshold."
           )
@@ -73,8 +73,8 @@ pCommand =
       <> command
         "delete"
         ( info
-            (withFile $ Delete <$> pStringArg (help "The key to delete"))
-            (progDesc "Delete a key from the history")
+            (withFile $ Delete <$> pStringArg (help "The entry to delete"))
+            (progDesc "Delete an entry from the history")
         )
       <> command
         "scores"
@@ -107,7 +107,7 @@ data FileArgs = FileArgs
 newtype Weights = Weights Energy
 
 pStringArg :: Mod ArgumentFields NEString -> Parser NEString
-pStringArg extraInfo = argument (maybeReader $ \str -> guard ('\n' `notElem` str) >> stripWhitespace str) (metavar "STRING" <> extraInfo)
+pStringArg extraInfo = argument (maybeReader $ \str -> guard ('\n' `notElem` str) >> stripWhitespace str) (metavar "KEY" <> extraInfo)
 
 pWeights :: Parser Weights
 pWeights =
@@ -127,7 +127,7 @@ pExpireArgs =
       auto
       ( long "threshold"
           <> short 't'
-          <> help "Expiration threshold. Items with a monthly energy below this will be removed."
+          <> help "Expiration threshold. Entries with a monthly energy below this will be removed."
           <> metavar "FLOAT"
           <> value 0.2
           <> showDefault
@@ -155,8 +155,8 @@ data AugmentArgs = AugmentArgs
 pAugmentArgs :: Parser AugmentArgs
 pAugmentArgs =
   AugmentArgs
-    <$> flag False True (long "augment" <> short 'a' <> help "Augment the output with keys read from stdin, treating them as if they had a score of 0 if they are not present in the history")
-    <*> flag False True (long "restrict" <> short 'r' <> help "Only output items present in the keys read from stdin")
+    <$> flag False True (long "augment" <> short 'a' <> help "Augment the output with entries read from stdin, treating them as if they had a score of 0 if they are not present in the history")
+    <*> flag False True (long "restrict" <> short 'r' <> help "Only output entries present in the keys read from stdin")
 
 type Time = Word64
 
