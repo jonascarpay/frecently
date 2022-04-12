@@ -88,7 +88,7 @@ The energy levels decay exponentially, with half-lives of an hour, a day, and a 
 We `bump` an entry by adding 1 to each of these.
 
 An entry's frecency score is calculated by multiplying each of these three energies by a weight.
-The weights default to 160, 20, and 1, for the hourly, daily, and monthly energies, respectively, but can be overridden on the CLI.
+The weights default to 720, 30, and 1, for the hourly, daily, and monthly energies, respectively, but can be overridden on the CLI.
 
 Energies are updated _only_ when the history file is used in a `bump` or `touch` command, and when we do, we update every entry's energy simultaneously.
 This is invisible to the user, but it ensures that we only need to calculate decay factors once when opening a file, making score calculations very efficient.
