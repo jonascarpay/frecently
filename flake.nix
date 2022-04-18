@@ -39,8 +39,8 @@
         {
           defaultPackage = pkgs.frecently;
           packages.frecently = pkgs.frecently;
-
           devShell = pkgs.frecently-shell;
+          checks.integration-tests = import ./test pkgs;
         };
     in
     { inherit overlay; } // inputs.flake-utils.lib.eachDefaultSystem perSystem;

@@ -14,6 +14,8 @@ jobs:
         run: nix develop --command ghc --version
       - name: Build frecently
         run: nix build -L
+      - name: Run integration tests
+        run: nix build -L .#checks.x86_64-linux.integration-tests -L
 
   stack-build:
     name: Stack ${{ matrix.resolver }} on ${{ matrix.os }}
