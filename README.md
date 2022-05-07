@@ -75,11 +75,17 @@ fi
 
 ### Installation
 
-`frecently` is currently only distributed through GitHub or Hackage.
+#### Binaries
 
-It is built like any other Haskell application.
+There are static binaries available in FIXME.
 
-For Nix users: the `flake.nix` file exposes the executable both directly and as an overlay.
+#### Compiling from source
+
+`frecently` can be built using a Haskell build tool, or using Nix.
+
+Using Cabal, run `cabal build`.
+
+Using Nix, the `flake.nix` file exposes the executable both directly and as an overlay.
 
 ### Implementation details
 

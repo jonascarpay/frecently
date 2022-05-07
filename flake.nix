@@ -39,6 +39,8 @@
         {
           defaultPackage = pkgs.frecently;
           packages.frecently = pkgs.frecently;
+          packages.frecently-static = pkgs.pkgsStatic.frecently;
+          packages.frecently-aarch64-static = pkgs.pkgsCross.aarch64-multiplatform.pkgsStatic.frecently;
           devShell = pkgs.frecently-shell;
           checks.integration-tests = import ./test pkgs;
         };
