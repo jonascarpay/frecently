@@ -72,12 +72,12 @@ jobs:
       - name: Build static x86 binary
         run: |
           nix build -L .#frecently-static
-          file output/bin/frecently
+          file result/bin/frecently
           cp result/bin/frecently releases/frecently-static
       - name: Build static aarch64 binary
         run: |
           nix build -L .#frecently-aarch64-static
-          file output/bin/frecently
+          file result/bin/frecently
           cp result/bin/frecently releases/frecently-aarch64-static
       - uses: actions/upload-artifact@v3
         with:
