@@ -73,13 +73,15 @@ jobs:
         run: |
           nix build -L .#frecently-static
           file result/bin/frecently
-          cp result/bin/frecently releases/frecently-static
+      - uses: actions/upload-artifact@v3
+        with:
+          name: frecently-x86
+          path: result/bin/frecently
       - name: Build static aarch64 binary
         run: |
           nix build -L .#frecently-aarch64-static
           file result/bin/frecently
-          cp result/bin/frecently releases/frecently-aarch64-static
       - uses: actions/upload-artifact@v3
         with:
-          name: releases
-          path: releases
+          name: frecently-aarch64
+          path: result/bin/frecently

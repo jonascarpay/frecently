@@ -77,7 +77,8 @@ fi
 
 #### Binaries
 
-There are static binaries available in FIXME.
+The GitHub Action CI builds static binaries for x86 and aarch64, so look for the artifacts there.
+If this project gains traction (stars) I'll add proper releases so the artifacts don't get deleted after 90 days.
 
 #### Compiling from source
 
