@@ -129,7 +129,7 @@ pExpireArgs =
           <> short 't'
           <> help "Expiration threshold. Entries with a monthly energy below this will be removed."
           <> metavar "FLOAT"
-          <> value 0.2
+          <> value 0.1
           <> showDefault
       )
 

@@ -100,7 +100,7 @@ The weights default to 720, 30, and 1, for the hourly, daily, and monthly energi
 Energies are updated _only_ when the history file is used in a `bump` or `touch` command, and when we do, we update every entry's energy simultaneously.
 This is invisible to the user, but it ensures that we only need to calculate decay factors once when opening a file, making score calculations very efficient.
 
-When, during an update, an entry's monthly energy drops below the threshold value (defaults to 0.2), it is deleted from the history.
+When, during an update, an entry's monthly energy drops below the threshold value (defaults to 0.1), it is deleted from the history.
 If you don't want items to be deleted, use a threshold of 0.
 
 ### Comparison with other tools
