@@ -16,7 +16,7 @@ extra-doc-files:
 
 description:
   Extremely simple CLI frecency histories.
-  Intended for adding frecency to tools like dmenu / rofi / fzf.
+  Intended for adding frecency to tools like dmenu, rofi, or fzf.
   See the README for more information.
 
 homepage:        https://github.com/jonascarpay/frecently#readme
