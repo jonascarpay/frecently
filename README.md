@@ -87,8 +87,10 @@ end
 
 #### Binaries
 
-The [GitHub Action CI](https://github.com/jonascarpay/frecently/actions) builds static binaries for x86 and aarch64, so look for the artifacts there.
+The [GitHub Action CI](https://github.com/jonascarpay/frecently/actions) builds static binaries for x86 and aarch64, so look for artifacts on the most recent action.
 If this project gains traction (stars) I'll add proper releases so the artifacts don't get deleted after 90 days.
+
+`frecently` is also available on [Hackage](http://hackage.haskell.org/package/frecently), so depending on your distro you might be able to install straight from there.
 
 #### Compiling from source
 
