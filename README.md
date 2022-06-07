@@ -5,6 +5,7 @@
 Extremely simple CLI tool for maintaining a [frecency](https://en.wikipedia.org/wiki/Frecency) history.
 
 The intended use case is to add a frecency-based search history to CLI tools like [dmenu](https://tools.suckless.org/dmenu/), [rofi](https://github.com/davatorium/rofi), or [fzf](https://github.com/junegunn/fzf).
+It also allows you to easily emulate popular directory-jumping tools like [autojump](https://github.com/wting/autojump) or [z](https://github.com/rupa/z).
 
 
 ### Examples
@@ -71,6 +72,15 @@ if [ -d $DIR ]; then
   frecently bump $HISTORY "$DIR"
   $TERMCMD -d "$DIR"
 fi
+```
+
+This kind of script is especially useful when combined with a shell hook that bumps on every directory change, to get `autojump`-like behavior.
+For `fish`, that looks like this:
+
+```fish
+function __frecently-directory-hook --on-variable PWD --description 'bump current directory in history'
+  frecently bump /path/to/history/file "$PWD"
+end
 ```
 
 ### Installation
