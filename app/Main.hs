@@ -133,8 +133,8 @@ pExpireArgs =
           <> showDefault
       )
 
-readInput :: IO [NEString]
-readInput = mapMaybe stripWhitespace . lines <$> getContents
+readInput :: IO [(Int, NEString)]
+readInput = zip [1 ..] . mapMaybe stripWhitespace . lines <$> getContents
 
 augment :: AugmentArgs -> IO (Frecencies -> Frecencies)
 augment (AugmentArgs False False) = pure id
@@ -142,10 +142,12 @@ augment (AugmentArgs aug res) = do
   strs <- readInput
   pure $ \(Frecencies t fs) -> Frecencies t $
     case (aug, res) of
-      (False, True) -> Map.fromList [(str, nrg) | str <- strs, nrg <- toList (Map.lookup str fs)]
-      (True, False) -> foldr (\str -> Map.insertWith (<>) str (Energy 0 0 0)) fs strs
-      (True, True) -> Map.fromList $ (\key -> maybe (key, Energy 0 0 0) (key,) (Map.lookup key fs)) <$> strs
-      _ -> fs
+      (False, True) -> Map.fromList [(str, nrg) | (_, str) <- strs, nrg <- toList (Map.lookup str fs)]
+      (True, False) -> foldr (\(index, str) -> Map.insertWith (\_ old -> old) str (toEnergy index)) fs strs
+      (True, True) -> Map.fromList $ (\(index, key) -> maybe (key, toEnergy index) (key,) (Map.lookup key fs)) <$> strs
+  where
+    toEnergy :: Int -> Energy
+    toEnergy n = let e = negate (fromIntegral n) in Energy e e e
 
 data AugmentArgs = AugmentArgs
   { _aaAugment :: Bool,
