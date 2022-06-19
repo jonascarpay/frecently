@@ -209,7 +209,7 @@ view :: Weights -> Frecencies -> [String]
 view weights = fmap (unNEString . fst) . sortOn (negate . score weights . snd) . Map.toList . energies
 
 stripWhitespace :: String -> Maybe NEString
-stripWhitespace str = if null str' then Nothing else Just (NEString str)
+stripWhitespace str = if null str' then Nothing else Just (NEString str')
   where
     str' = (dropWhileEnd isSpace . dropWhile isSpace) str
 
