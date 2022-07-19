@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -145,6 +146,12 @@ augment (AugmentArgs aug res) = do
       (False, True) -> Map.fromList [(str, nrg) | (_, str) <- strs, nrg <- toList (Map.lookup str fs)]
       (True, False) -> foldr (\(index, str) -> Map.insertWith (\_ old -> old) str (toEnergy index)) fs strs
       (True, True) -> Map.fromList $ (\(index, key) -> maybe (key, toEnergy index) (key,) (Map.lookup key fs)) <$> strs
+#if MIN_VERSION_base(4,15,0)
+    -- GHC 9 eerily warns that this case is redundant, because it's already covered in line 141.
+    -- We don't actually need to care about backwards compatibility with GHC <9, but it feels nice.
+#else
+      _ -> fs
+#endif
   where
     toEnergy :: Int -> Energy
     toEnergy n = let e = negate (fromIntegral n) in Energy e e e
