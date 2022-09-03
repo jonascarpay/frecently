@@ -1,7 +1,7 @@
 {
   description = "frecently";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-22.05";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
   outputs = inputs:
